@@ -3,7 +3,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-export HOME="/home/lz" # 明确设置 HOME 变量为你的用户家目录,此处因为我的用户名是lz。
+export HOME="/home/lz" # 明确设置 HOME 变量为你的用户家目录
 
 # Automatically update your CloudFlare DNS record to the IP, Dynamic DNS
 # Can retrieve cloudflare Domain id and list zone's, because, lazy
@@ -33,16 +33,16 @@ export HOME="/home/lz" # 明确设置 HOME 变量为你的用户家目录,此处
 CFKEY=
 
 # Username, eg: user@example.com
-CFUSER=
+CFUSER=5@foxmail.com
 
 # Zone name, eg: example.com
-CFZONE_NAME=
+CFZONE_NAME=.com
 
 # Hostname to update, eg: homeserver.example.com
-CFRECORD_NAME=
+CFRECORD_NAME=.com
 
 # Record type, A(IPv4)|AAAA(IPv6), default IPv4
-CFRECORD_TYPE=A
+CFRECORD_TYPE=AAAA
 
 # Cloudflare TTL for record, between 120 and 86400 seconds
 CFTTL=120
@@ -50,7 +50,7 @@ CFTTL=120
 # Ignore local file, update ip anyway
 FORCE=false
 
-WANIPSITE="http://ipv4.icanhazip.com"
+WANIPSITE="http://ipv6.icanhazip.com"
 
 # Site to retrieve WAN ip, other examples are: bot.whatismyipaddress.com, https://api.ipify.org/ ...
 if [ "$CFRECORD_TYPE" = "A" ]; then
