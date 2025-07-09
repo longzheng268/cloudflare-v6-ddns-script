@@ -3,7 +3,7 @@
 
 # --- 用户配置部分 ---
 $CFUser = "@foxmail.com"#cloudflare账号邮箱
-$CFKEY = ""#Key
+$CFKEY = ""#Cloudflare 全局 API 密钥Key
 $CFZoneName = "*.com"#根域名
 $CFRecordName = "**.*.com"#子域名
 $CFRecordType = "AAAA"#AAAA是IPv6
