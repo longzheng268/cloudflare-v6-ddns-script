@@ -3,8 +3,13 @@ Description=Cloudflare DDNS Update Service
 After=network-online.target
 
 [Service]
+#默认注释掉以root运行，如果需要其他用户请配置
 #User=lz
 #Group=lz
+#-i <EXTERNAL|INTERNAL>: IP 获取模式。[默认: EXTERNAL]
+#      - INTERNAL: 通过 Linux 路由表获取 IP (推荐用于 IPv6 且避免外部查询被限流)。
+#      - EXTERNAL: 通过外部网站获取 IP。
+
 ExecStart=/opt/cf-v6-ddns.sh -f true
 Restart=on-failure
 RestartSec=30
