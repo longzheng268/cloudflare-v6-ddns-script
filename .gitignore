@@ -1,0 +1,32 @@
+# 敏感配置文件
+*.env
+*.env.local
+config/secrets.*
+**/*secret*
+**/*key*
+**/*token*
+*.key
+*.pem
+**/*password*
+
+# 临时文件
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE文件
+.vscode/settings.json
+.idea/
+
+# 缓存文件
+*.cache
+node_modules/
+__pycache__/
+
+# 构建文件
+dist/
+build/
+*.exe
+*.dmg
+*.pkg

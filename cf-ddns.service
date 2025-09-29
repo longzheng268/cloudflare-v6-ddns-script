@@ -1,0 +1,15 @@
+[Unit]
+Description=Cloudflare DDNS Update Service
+After=network-online.target
+
+[Service]
+#User=lz
+#Group=lz
+ExecStart=/opt/cf-v6-ddns.sh -f true
+Restart=on-failure
+RestartSec=30
+StandardOutput=append:/var/log/cf-ddns.log
+StandardError=append:/var/log/cf-ddns.log
+
+[Install]
+WantedBy=multi-user.target
