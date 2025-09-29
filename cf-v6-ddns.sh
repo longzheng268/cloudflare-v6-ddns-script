@@ -83,8 +83,8 @@ IP_SOURCE=${IP_SOURCE:-"EXTERNAL"} # IP 获取方式：EXTERNAL 或 INTERNAL
 WANIPSITE=${WANIPSITE:-"https://api6.ipify.org"} 
 WANIPSITE_FALLBACK="https://ipv6.icanhazip.com" 
 
-# 重新解析参数，捕获所有有效参数 (添加 ':' 在 getopts 前以禁止默认错误报告)
-while getopts :k:u:h:z:t:f:d:i:? opts; do 
+# 改进参数解析：友好的错误提示
+while getopts k:u:h:z:t:f:d:i:? opts; do 
   case ${opts} in 
     k) CFKEY=${OPTARG} ;; 
     u) CFUSER=${OPTARG} ;; 
@@ -95,7 +95,16 @@ while getopts :k:u:h:z:t:f:d:i:? opts; do
     d) DEBUG=${OPTARG} ;; 
     i) IP_SOURCE=${OPTARG} ;;
     ?) print_usage ;;
-    :) log_error "参数 -${OPTARG} 需要一个参数。使用 -? 查看帮助。" && exit 2 ;; 
+    :) 
+        # 友好的参数缺失提示，避免系统原生错误
+        case $OPTARG in
+            h) log_error "参数 -h 需要指定主机名。示例: -h raspberry.lz-0315.com" ;;
+            f) log_error "参数 -f 需要指定 true 或 false。示例: -f true" ;;
+            i) log_error "参数 -i 需要指定 EXTERNAL 或 INTERNAL。示例: -i INTERNAL" ;;
+            *) log_error "参数 -${OPTARG} 需要一个参数。使用 -? 查看帮助。" ;;
+        esac
+        exit 2
+        ;; 
     *) log_error "无法识别的参数：-${opts}。使用 -? 查看帮助。" && exit 2 ;;
   esac 
 done 
@@ -163,17 +172,39 @@ WAN_IP=""
 
 if [ "$IP_SOURCE" = "INTERNAL" ]; then
     if [[ "$(uname)" == "Linux" ]]; then
-        log_info "正在使用内部路由查询 (Linux) 过滤公网 IPv6 地址 (GUA)..."
-        # 优化后的逻辑：查找作用域为 global，地址以 2 或 3 开头 (GUA) 的 IPv6 地址
-        WAN_IP=$(ip -6 addr show scope global | grep -oP 'inet6 \K[0-9a-f:]+' | grep -E '^2|^3' | head -n 1)
+        log_info "正在使用内部 IPv6 地址查询 (Linux) - 强力过滤 ULA 和 Link-Local..."
+        # 强力过滤逻辑：
+        # 1. 过滤掉 Link-Local (fe80::/10)
+        # 2. 过滤掉 ULA (fc00::/7, 包括 fd00::/8)  
+        # 3. 只保留全球单播地址 (2000::/3, 通常以 2 或 3 开头)
+        WAN_IP=$(ip -6 addr show scope global | \
+                 grep -oP 'inet6 \K[0-9a-f:]+(?=/[0-9]+)' | \
+                 grep -v '^fe[89ab][0-9a-f]:' | \
+                 grep -v '^f[cd][0-9a-f][0-9a-f]:' | \
+                 grep -E '^[23][0-9a-f][0-9a-f][0-9a-f]:' | \
+                 head -n 1)
 
         if [ -z "$WAN_IP" ]; then
-            log_error "INTERNAL 模式失败。未能找到有效的全球单播 IPv6 地址 (GUA)。"
-            log_error "错误代码: 可能是网络未分配公网 IPv6 或仅分配了私有 ULA 地址。"
+            log_error "INTERNAL 模式失败。未找到有效的全球单播 IPv6 地址 (GUA)。"
+            log_error "检测到的地址可能为: Link-Local (fe80::) 或 ULA (fc00::/fd00::)"
+            log_error "解决方案: 请确保您的网络接口已获得公网 IPv6 地址，或使用 '-i EXTERNAL'。"
+        fi
+
+    elif [[ "$(uname)" == "Darwin" ]]; then
+        log_info "正在使用内部 IPv6 地址查询 (macOS) - 强力过滤 ULA 和 Link-Local..."
+        # macOS 使用 ifconfig 获取 IPv6 地址
+        WAN_IP=$(ifconfig | grep -E 'inet6.*(?:2[0-9a-f]{3}|3[0-9a-f]{3}):' | \
+                 grep -v '%' | \
+                 grep -oE '2[0-9a-f:]+|3[0-9a-f:]+' | \
+                 head -n 1)
+
+        if [ -z "$WAN_IP" ]; then
+            log_error "INTERNAL 模式失败 (macOS)。未找到有效的全球单播 IPv6 地址。"
+            log_error "macOS 解决方案: 请确保 IPv6 已启用，或使用 '-i EXTERNAL'。"
         fi
 
     else
-        log_warn "INTERNAL 模式仅完整支持 Linux。在当前系统 ($(uname)) 上将回退到外部查询。"
+        log_warn "INTERNAL 模式仅完整支持 Linux 和 macOS。在 $(uname) 上回退到外部查询。"
         IP_SOURCE="EXTERNAL" # 强制回退
     fi
 fi
@@ -199,18 +230,22 @@ if [ "$IP_SOURCE" = "EXTERNAL" ]; then
         # 外部查询也添加超时
         ip_addr=$(curl -s --max-time 5 ${flags} --connect-timeout 5 --noproxy '*' "$url")
 
-        # 验证 IP 格式 (修复：允许压缩 IPv6 格式)
-        if [ "$ip_type_check" = "AAAA" ] && [[ "$ip_addr" =~ : && "$ip_addr" =~ ^[0-9a-fA-F:]+$ ]]; then
-            echo "$ip_addr"
-            return 0
+        # 改进的IP格式验证：支持IPv6压缩格式
+        if [ "$ip_type_check" = "AAAA" ]; then
+            # IPv6验证：必须包含冒号，允许压缩格式，排除明显无效地址
+            if [[ "$ip_addr" =~ : ]] && [[ "$ip_addr" =~ ^[0-9a-fA-F:]+$ ]] && \
+               [[ ! "$ip_addr" =~ ^fe80: ]] && [[ ! "$ip_addr" =~ ^f[cd][0-9a-fA-F][0-9a-fA-F]: ]]; then
+                echo "$ip_addr"
+                return 0
+            fi
         elif [ "$ip_type_check" = "A" ] && [[ "$ip_addr" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             echo "$ip_addr"
             return 0
-        else
-            # 确保失败时返回空字符串，而不是 IP 地址
-            echo ""
-            return 1
         fi
+        
+        # 失败时返回空字符串
+        echo ""
+        return 1
     }
 
     # --- 外部查询逻辑 ---
@@ -241,10 +276,19 @@ fi
 
 # IP 验证和失败退出逻辑
 if [ "$CFRECORD_TYPE" = "AAAA" ]; then
-    # 最终检查: 确保地址不为空且是有效的 IPv6 格式
+    # 修复：放宽 IPv6 验证，支持压缩格式 (::)
+    # 简化验证：只要包含冒号且不为空就认为是有效的 IPv6
     if [ -z "$WAN_IP" ] || ! [[ "$WAN_IP" =~ : ]]; then
-        log_error "无法获取有效的 IPv6 地址 (WAN_IP: '${WAN_IP}')。请检查公网 IPv6 连接或尝试 '-i INTERNAL'。"
+        log_error "无法获取有效的 IPv6 地址 (WAN_IP: '${WAN_IP}')。请检查公网 IPv6 连接。"
+        log_error "调试建议: 尝试 '-i INTERNAL' 或检查外部 IPv6 查询服务可达性。"
     fi
+    
+    # 进一步验证：确保不是明显的无效地址
+    if [[ "$WAN_IP" =~ ^fe80: ]] || [[ "$WAN_IP" =~ ^f[cd][0-9a-f][0-9a-f]: ]]; then
+        log_error "检测到无效的 IPv6 地址类型: ${WAN_IP}"
+        log_error "Link-Local (fe80::) 或 ULA (fc00::/fd00::) 地址无法用于公网 DNS。"
+    fi
+    
     log_info "当前公网 IPv6 地址: ${GREEN}${WAN_IP}${NC}"
 elif [ "$CFRECORD_TYPE" = "A" ]; then
     if [ -z "$WAN_IP" ] || ! [[ "$WAN_IP" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
