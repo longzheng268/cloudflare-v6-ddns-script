@@ -147,14 +147,26 @@ notepad Update-CloudflareDDNS.ps1
 ```powershell
 #设置定时一小时为例
 Unregister-ScheduledTask -TaskName "CloudflareDDNS_Update" -Confirm:$false; $A = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File Update-CloudflareDDNS.ps1" -WorkingDirectory "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"; $T = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 1); Register-ScheduledTask -TaskName "CloudflareDDNS_Update" -Action $A -Trigger $T -RunLevel Highest -Force
+```
+```
 #更改频率
 Set-ScheduledTask -TaskName "CloudflareDDNS_Update" -Trigger (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 12))
+```
+```
 #删除定时任务
 Unregister-ScheduledTask -TaskName "CloudflareDDNS_Update" -Confirm:$false
+```
+```
 #查看日志
 Get-ScheduledTaskInfo -TaskName "CloudflareDDNS_Update" | Select LastTaskResult
 ```
 ```
+#手动触发测试
+Start-ScheduledTask -TaskName "CloudflareDDNS_Update"
+#查看运行状态 (输出 0 表示成功)
+Get-ScheduledTaskInfo -TaskName "CloudflareDDNS_Update" | Select LastTaskResult, LastRunTime
+```
+
 
 ## 🔧 故障排除
 
