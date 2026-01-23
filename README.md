@@ -144,7 +144,7 @@ notepad Update-CloudflareDDNS.ps1
 # 计划任务 (可选)
 # 如果你需要定期自动更新 DDNS，请以 **管理员身份** 打开 PowerShell 执行以下命令
 管理员运行一下命令可以实现定时：
-```powershell
+```
 #设置定时一小时为例
 Unregister-ScheduledTask -TaskName "CloudflareDDNS_Update" -Confirm:$false; $A = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File Update-CloudflareDDNS.ps1" -WorkingDirectory "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp"; $T = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 1); Register-ScheduledTask -TaskName "CloudflareDDNS_Update" -Action $A -Trigger $T -RunLevel Highest -Force
 ```
